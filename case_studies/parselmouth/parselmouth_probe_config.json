@@ -1,0 +1,50 @@
+{
+  "name": "parselmouth_case_study",
+  "output_root": "results/case_studies/parselmouth",
+  "python_graphs": [
+    {
+      "name": "project_python_no_tests",
+      "command": "project-graph",
+      "exclude_tests": true,
+      "max_nodes": 300
+    },
+    {
+      "name": "project_python_with_tests",
+      "command": "project-graph",
+      "exclude_tests": false,
+      "max_nodes": 300
+    },
+    {
+      "name": "import_python_no_tests",
+      "command": "import-graph",
+      "exclude_tests": true,
+      "max_nodes": 300
+    },
+    {
+      "name": "call_python_no_tests",
+      "command": "call-graph",
+      "exclude_tests": true,
+      "max_nodes": 300
+    }
+  ],
+  "native_graphs": [
+    {
+      "name": "repo_scan",
+      "command": "repo-scan",
+      "include_third_party": true,
+      "max_nodes": 300
+    },
+    {
+      "name": "cmake_graph",
+      "command": "cmake-graph",
+      "include_third_party": false,
+      "max_nodes": 300
+    },
+    {
+      "name": "pybind11_graph",
+      "command": "pybind11-graph",
+      "include_third_party": false,
+      "max_nodes": 300
+    }
+  ]
+}

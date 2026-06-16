@@ -6,8 +6,11 @@ from pathlib import Path
 from uml_diagram_creator.analyzer.ast_parser import analyze_path
 from uml_diagram_creator.analyzer.call_graph import build_call_graph
 from uml_diagram_creator.analyzer.class_graph import build_class_graph, build_inheritance_graph
+from uml_diagram_creator.analyzer.cmake_graph import build_cmake_graph
 from uml_diagram_creator.analyzer.import_graph import build_import_graph
+from uml_diagram_creator.analyzer.pybind11_graph import build_pybind11_graph
 from uml_diagram_creator.analyzer.project_graph import build_project_graph
+from uml_diagram_creator.analyzer.repo_scan import ScanOptions, build_repo_scan_graph
 from uml_diagram_creator.export.writers import write_graph_outputs
 from uml_diagram_creator.integrations.pyreverse_runner import (
     PyreverseError,
@@ -55,6 +58,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_graph_command(subparsers, "import-graph", default_graph="import", help_text="Render an import graph.")
     add_graph_command(subparsers, "project-graph", default_graph="project", help_text="Render a combined project graph.")
     add_pyreverse_command(subparsers)
+    add_native_graph_command(subparsers, "repo-scan", help_text="Render an experimental repository architecture graph.")
+    add_native_graph_command(subparsers, "cmake-graph", help_text="Render an experimental CMake target graph.")
+    add_native_graph_command(subparsers, "pybind11-graph", help_text="Render an experimental pybind11 binding graph.")
     return parser
 
 
@@ -109,6 +115,22 @@ def add_pyreverse_command(subparsers: argparse._SubParsersAction[argparse.Argume
     command.set_defaults(func=run_pyreverse_command)
 
 
+def add_native_graph_command(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+    name: str,
+    *,
+    help_text: str,
+) -> None:
+    command = subparsers.add_parser(name, help=help_text)
+    command.add_argument("path", help="Project directory to scan.")
+    command.add_argument("--output", default=None, help=f"Output directory. Default: results/<project_name>/{name}.")
+    command.add_argument("--max-nodes", type=int, default=300, help="Maximum nodes to render in HTML.")
+    command.add_argument("--include-build-artifacts", action="store_true", help="Include build, dist, and _skbuild directories.")
+    command.add_argument("--include-venv", action="store_true", help="Include virtualenv and site-packages directories.")
+    command.add_argument("--include-third-party", action="store_true", help="Include embedded third-party trees such as pybind11 and praat.")
+    command.set_defaults(func=run_native_graph_command)
+
+
 def run_graph_command(args: argparse.Namespace) -> int:
     target = Path(args.path)
     output_dir = Path(args.output) if args.output else Path("results") / project_name(target)
@@ -133,6 +155,39 @@ def run_graph_command(args: argparse.Namespace) -> int:
 
     print(f"Analyzed: {target}")
     print(f"Graph: {args.graph}")
+    print(f"Nodes: {len(graph.nodes)}")
+    print(f"Edges: {len(graph.edges)}")
+    for label, path in outputs.items():
+        print(f"{label}: {path}")
+    return 0
+
+
+def run_native_graph_command(args: argparse.Namespace) -> int:
+    target = Path(args.path)
+    output_dir = Path(args.output) if args.output else Path("results") / project_name(target) / args.command
+    options = ScanOptions(
+        include_build_artifacts=args.include_build_artifacts,
+        include_venv=args.include_venv,
+        include_third_party=args.include_third_party,
+    )
+
+    builders = {
+        "repo-scan": (build_repo_scan_graph, "repo_scan_graph.html"),
+        "cmake-graph": (build_cmake_graph, "cmake_graph.html"),
+        "pybind11-graph": (build_pybind11_graph, "pybind11_graph.html"),
+    }
+    builder, html_name = builders[args.command]
+    graph = builder(target, options)
+    if args.max_nodes and args.max_nodes > 0 and len(graph.nodes) > args.max_nodes:
+        graph = limit_graph_nodes(graph, args.max_nodes)
+
+    outputs = write_graph_outputs(graph, output_dir)
+    html_path = output_dir / html_name
+    render_graph_html(graph, html_path)
+    outputs["html"] = html_path
+
+    print(f"Scanned: {target}")
+    print(f"Graph: {graph.graph_type}")
     print(f"Nodes: {len(graph.nodes)}")
     print(f"Edges: {len(graph.edges)}")
     for label, path in outputs.items():

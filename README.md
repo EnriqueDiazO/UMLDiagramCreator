@@ -113,6 +113,9 @@ umlgraph call-graph          Render a call graph.
 umlgraph import-graph        Render an import graph.
 umlgraph project-graph       Render a combined project graph.
 umlgraph pyreverse           Generate classic UML diagrams with Pyreverse + Graphviz.
+umlgraph repo-scan           Render an experimental repository architecture graph.
+umlgraph cmake-graph         Render an experimental CMake target graph.
+umlgraph pybind11-graph      Render an experimental pybind11 binding graph.
 ```
 
 For the interactive graph commands, `--output` is an output directory. The HTML filename is selected from the graph type.
@@ -221,6 +224,168 @@ png
 svg
 dot,png
 dot,png,svg
+```
+
+## Experimental Native Architecture Graphs
+
+Hybrid Python/native projects often cannot be understood from Python AST graphs alone. UMLDiagramCreator includes early experimental scanners for repository architecture, CMake, and pybind11 bindings:
+
+```bash
+umlgraph repo-scan /path/to/project --output results/repo_scan
+umlgraph cmake-graph /path/to/project --output results/cmake_graph
+umlgraph pybind11-graph /path/to/project --output results/pybind11_graph
+```
+
+These modes are intentionally lightweight. They use filesystem scanning and regular expressions rather than full CMake or C++ parsers.
+
+Default filters skip generated and environment-like directories:
+
+```text
+.git
+build
+dist
+_skbuild
+venv
+.venv
+env
+parsel2-env
+site-packages
+__pycache__
+```
+
+Embedded third-party trees such as `pybind11/` and `praat/` are skipped unless `--include-third-party` is provided. You can opt into noisy trees when needed:
+
+```bash
+umlgraph repo-scan /path/to/project --include-build-artifacts --include-venv --include-third-party
+```
+
+## Case Study: Parselmouth / Praat / pybind11
+
+Parselmouth is a difficult and useful case because it is not a pure Python package. It combines Python packaging, CMake, pybind11, C++, and an embedded Praat source tree.
+
+The current Python analyzer can show the Python surface of Parselmouth: packaging helpers, tests, documentation utilities, imports, Python functions, and Python classes. Pyreverse has a similar Python-oriented limit.
+
+The native architecture is better approached with:
+
+- `repo-scan` for repository-level structure and file-type categories;
+- `cmake-graph` for CMake projects, targets, subdirectories, source declarations, includes, and linked libraries;
+- `pybind11-graph` for `PYBIND11_MODULE`, `py::class_`, `py::enum_`, exposed `.def(...)` methods, and Parselmouth/Praat-style binding macros.
+
+Run the reproducible case study:
+
+```bash
+python case_studies/parselmouth/run_parselmouth_probe.py /path/to/Parselmouth
+```
+
+Outputs are written to:
+
+```text
+results/case_studies/parselmouth/
+```
+
+The generated `REPORT.md` summarizes file counts, generated HTML/JSON/CSV outputs, warnings about build or virtual-environment directories, and the current technical conclusion.
+
+### Reproducing the Parselmouth case study from a ZIP file
+
+From the repository root:
+
+```bash
+cd /path/to/UMLDiagramCreator
+source .venv/bin/activate
+```
+
+If you have `Parselmouth-master.zip` in the repository root, extract it into `/tmp`:
+
+```bash
+rm -rf /tmp/parselmouth-case
+mkdir -p /tmp/parselmouth-case
+unzip -q Parselmouth-master.zip -d /tmp/parselmouth-case
+```
+
+Run the complete Parselmouth case study:
+
+```bash
+python case_studies/parselmouth/run_parselmouth_probe.py \
+  /tmp/parselmouth-case/Parselmouth-master
+```
+
+The outputs are written to:
+
+```text
+results/case_studies/parselmouth/
+```
+
+Open the generated report:
+
+```bash
+xdg-open results/case_studies/parselmouth/REPORT.md
+```
+
+Open the main native-architecture graphs:
+
+```bash
+xdg-open results/case_studies/parselmouth/repo_scan/repo_scan_graph.html
+xdg-open results/case_studies/parselmouth/cmake_graph/cmake_graph.html
+xdg-open results/case_studies/parselmouth/pybind11_graph/pybind11_graph.html
+```
+
+The most relevant graphs for Parselmouth are:
+
+- `repo_scan_graph.html`: repository-level architecture, including Python, C++, CMake, pybind11, Praat, tests, and documentation.
+- `cmake_graph.html`: CMake structure, targets, subdirectories, sources, includes, and linked libraries.
+- `pybind11_graph.html`: pybind11 bindings, exposed modules, classes, methods, and Parselmouth/Praat binding macros.
+
+### Running individual Parselmouth graph commands
+
+```bash
+umlgraph repo-scan /tmp/parselmouth-case/Parselmouth-master \
+  --output results/case_studies/parselmouth/repo_scan \
+  --include-third-party
+
+umlgraph cmake-graph /tmp/parselmouth-case/Parselmouth-master \
+  --output results/case_studies/parselmouth/cmake_graph
+
+umlgraph pybind11-graph /tmp/parselmouth-case/Parselmouth-master \
+  --output results/case_studies/parselmouth/pybind11_graph
+```
+
+### Python-oriented graphs for Parselmouth
+
+```bash
+umlgraph project-graph /tmp/parselmouth-case/Parselmouth-master \
+  --output results/case_studies/parselmouth/project_python_no_tests \
+  --exclude-tests \
+  --max-nodes 300
+
+umlgraph import-graph /tmp/parselmouth-case/Parselmouth-master \
+  --output results/case_studies/parselmouth/import_python_no_tests \
+  --exclude-tests \
+  --max-nodes 300
+
+umlgraph call-graph /tmp/parselmouth-case/Parselmouth-master \
+  --output results/case_studies/parselmouth/call_python_no_tests \
+  --exclude-tests \
+  --max-nodes 300
+```
+
+These Python-oriented graphs are useful for inspecting the Python surface of Parselmouth, but they do not fully describe the native extension architecture. For this project, the native graphs generated by `repo-scan`, `cmake-graph`, and `pybind11-graph` are usually more informative.
+
+### Common issues
+
+If `xdg-open` does not work, open the generated `.html` files manually in a browser.
+
+If the ZIP is not in the repository root, replace `Parselmouth-master.zip` with the actual path.
+
+If the extracted folder has a different name, inspect it with:
+
+```bash
+find /tmp/parselmouth-case -maxdepth 2 -type d
+```
+
+Then pass the correct extracted directory to:
+
+```bash
+python case_studies/parselmouth/run_parselmouth_probe.py /correct/path/to/Parselmouth
 ```
 
 ## Demo Scripts

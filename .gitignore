@@ -54,6 +54,7 @@ uml/
 !docs/**/*.md
 !docs/**/*.png
 !docs/**/*.svg
+!case_studies/**/*.json
 !examples/
 !examples/**
 !.vscode/
