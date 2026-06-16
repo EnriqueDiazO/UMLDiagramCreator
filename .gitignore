@@ -35,11 +35,16 @@ dist/
 results/*
 !results/
 !results/.gitkeep
+results/pyreverse/
+uml/
 
 # Generated graph artifacts
 *.html
 *.csv
 *.json
+*.dot
+*.png
+*.svg
 
 # Local reference archives and temporary attachments
 *.zip
@@ -47,6 +52,8 @@ results/*
 # Keep documentation/examples if explicitly versioned
 !docs/
 !docs/**/*.md
+!docs/**/*.png
+!docs/**/*.svg
 !examples/
 !examples/**
 !.vscode/

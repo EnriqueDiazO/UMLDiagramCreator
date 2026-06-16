@@ -9,6 +9,13 @@ from uml_diagram_creator.analyzer.class_graph import build_class_graph, build_in
 from uml_diagram_creator.analyzer.import_graph import build_import_graph
 from uml_diagram_creator.analyzer.project_graph import build_project_graph
 from uml_diagram_creator.export.writers import write_graph_outputs
+from uml_diagram_creator.integrations.pyreverse_runner import (
+    PyreverseError,
+    default_output_dir,
+    default_project_name,
+    parse_formats,
+    run_pyreverse,
+)
 from uml_diagram_creator.render.html_renderer import render_graph_html
 
 
@@ -47,6 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_graph_command(subparsers, "call-graph", default_graph="call", help_text="Render a call graph.")
     add_graph_command(subparsers, "import-graph", default_graph="import", help_text="Render an import graph.")
     add_graph_command(subparsers, "project-graph", default_graph="project", help_text="Render a combined project graph.")
+    add_pyreverse_command(subparsers)
     return parser
 
 
@@ -81,6 +89,26 @@ def add_graph_command(
     command.set_defaults(func=run_graph_command)
 
 
+def add_pyreverse_command(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    command = subparsers.add_parser(
+        "pyreverse",
+        help="Generate classic UML diagrams with optional Pyreverse + Graphviz integration.",
+    )
+    command.add_argument("path", help="Python file, package, or project directory to analyze with Pyreverse.")
+    command.add_argument("--project-name", default=None, help="Project name for classes_<project>.dot outputs.")
+    command.add_argument(
+        "--output",
+        default=None,
+        help="Output directory. Default: results/pyreverse/<project_name>.",
+    )
+    command.add_argument(
+        "--formats",
+        default="dot,png,svg",
+        help="Comma-separated formats: dot, png, svg, dot,png, dot,png,svg. Default: dot,png,svg.",
+    )
+    command.set_defaults(func=run_pyreverse_command)
+
+
 def run_graph_command(args: argparse.Namespace) -> int:
     target = Path(args.path)
     output_dir = Path(args.output) if args.output else Path("results") / project_name(target)
@@ -109,6 +137,31 @@ def run_graph_command(args: argparse.Namespace) -> int:
     print(f"Edges: {len(graph.edges)}")
     for label, path in outputs.items():
         print(f"{label}: {path}")
+    return 0
+
+
+def run_pyreverse_command(args: argparse.Namespace) -> int:
+    target = Path(args.path)
+    project = args.project_name or default_project_name(target)
+    output_dir = Path(args.output) if args.output else default_output_dir(project)
+
+    try:
+        formats = parse_formats(args.formats)
+        result = run_pyreverse(target, project_name=project, output_dir=output_dir, formats=formats)
+    except (PyreverseError, ValueError) as exc:
+        print(str(exc))
+        print(
+            "No se pudo generar el diagrama. Revisa que pylint y Graphviz esten instalados. "
+            "Tambien puedes probar: dot -V y python -m pylint.pyreverse.main --help."
+        )
+        return 2
+
+    print(f"Pyreverse target: {target}")
+    print(f"Project name: {result.project_name}")
+    print(f"Output directory: {result.output_dir}")
+    print("Archivos generados:")
+    for path in result.generated_files:
+        print(f"- {path}")
     return 0
 
 

@@ -14,6 +14,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+pyreverse = ["pylint>=3"]
 
 [project.scripts]
 umlgraph = "uml_diagram_creator.cli:main"
